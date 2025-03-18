@@ -1,9 +1,8 @@
-package com.firman.dirmon.batch;
+package com.firman.dirmon;
 
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 /**
  * Starts the batch process of reading input csv and writing it to database.
@@ -11,7 +10,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
  * @author Firman
  */
 @EnableBatchProcessing
-@EnableConfigurationProperties(DomainBatchProperties.class)
 @SpringBootApplication
 public class DomainBatchApplication {
 

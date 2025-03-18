@@ -1,16 +1,17 @@
-package com.firman.dirmon.batch;
+package com.firman.dirmon.ingest;
 
+import com.firman.dirmon.datasource.Domain;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
-import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.FileSystemResource;
@@ -20,15 +21,14 @@ import javax.sql.DataSource;
 import java.util.logging.Logger;
 
 /**
- * Main job configuration file.
- * The batch job will be executed on demand each time file system monitor detects new file created in watch dir.
+ * Spring Batch configuration for input file ingestion into the database.
  *
  * @author Firman
  */
 @Configuration
-public class DomainBatchConfig {
+public class DomainIngestConfig {
 
-    private static final Logger LOGGER = Logger.getLogger(DomainBatchConfig.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(DomainIngestConfig.class.getName());
     private static final String INSERT_SQL = "INSERT INTO domains "
             + "(timestamp, src_ip, src_port, dst_ip, dst_port, domain)"
             + " VALUES "
@@ -39,16 +39,37 @@ public class DomainBatchConfig {
             "dstIp",
             "dstPort",
             "domain"};
-    private static final String READER_NAME = "domainsReader";
-    private static final String STEP_NAME = "readWriteDomainsStep";
-    private static final String JOB_NAME = "ingestDomainsJob";
+    private static final String READER_NAME = "domainReader";
+    private static final String STEP_NAME = "ingestDomainStep";
+    private static final String JOB_NAME = "ingestDomainJob";
+
+    private final String inputFile;
+    private final int chunkSize;
+    private final DataSource dataSource;
+    private final JobRepository jobRepository;
+    private final PlatformTransactionManager transactionManager;
+    private final JobLauncher jobLauncher;
+
+    public DomainIngestConfig(@Value("${batch.input}") String inputFile,
+                              @Value("${batch.chunk-size}") int chunkSize,
+                              DataSource dataSource,
+                              JobRepository jobRepository,
+                              PlatformTransactionManager transactionManager,
+                              JobLauncher jobLauncher) {
+        this.inputFile = inputFile;
+        this.chunkSize = chunkSize;
+        this.dataSource = dataSource;
+        this.jobRepository = jobRepository;
+        this.transactionManager = transactionManager;
+        this.jobLauncher = jobLauncher;
+    }
 
     @Bean
-    public FlatFileItemReader<Domain> domainReader(DomainBatchProperties properties) {
-        LOGGER.info("Ingesting: " + properties.getFilename());
+    public FlatFileItemReader<Domain> csvReader() {
+        LOGGER.info("Ingesting: " + inputFile);
         return new FlatFileItemReaderBuilder<Domain>()
                 .name(READER_NAME)
-                .resource(new FileSystemResource(properties.getFilename()))
+                .resource(new FileSystemResource(inputFile))
                 .linesToSkip(1)
                 .delimited()
                 .names(INPUT_FIELDS)
@@ -58,7 +79,7 @@ public class DomainBatchConfig {
 
 
     @Bean
-    public JdbcBatchItemWriter<Domain> writer(DataSource dataSource) {
+    public JdbcBatchItemWriter<Domain> dbWriter() {
         return new JdbcBatchItemWriterBuilder<Domain>()
                 .sql(INSERT_SQL)
                 .dataSource(dataSource)
@@ -68,26 +89,21 @@ public class DomainBatchConfig {
 
 
     @Bean
-    public Step step(JobRepository jobRepository,
-                     PlatformTransactionManager transactionManager,
-                     ItemReader<Domain> reader,
-                     ItemWriter<Domain> writer,
-                     DomainBatchProperties properties) {
+    public Step ingestStep() {
         return new StepBuilder(STEP_NAME)
                 .repository(jobRepository)
-                .<Domain, Domain>chunk(properties.getChunkSize())
-                .reader(reader)
-                .writer(writer)
+                .<Domain, Domain>chunk(chunkSize)
+                .reader(csvReader())
+                .writer(dbWriter())
                 .transactionManager(transactionManager)
                 .build();
     }
 
     @Bean
-    public Job job(JobRepository jobRepository,
-                   Step step) {
+    public Job ingestJob() {
         return new JobBuilder(JOB_NAME)
                 .repository(jobRepository)
-                .start(step)
+                .start(ingestStep())
                 .build();
     }
 }

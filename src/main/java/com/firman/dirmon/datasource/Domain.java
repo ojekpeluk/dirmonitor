@@ -1,4 +1,4 @@
-package com.firman.dirmon.batch;
+package com.firman.dirmon.datasource;
 
 /**
  * Input data.
