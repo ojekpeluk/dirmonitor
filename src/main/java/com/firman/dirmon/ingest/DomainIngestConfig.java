@@ -2,6 +2,7 @@ package com.firman.dirmon.ingest;
 
 import com.firman.dirmon.datasource.Domain;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
@@ -105,5 +106,14 @@ public class DomainIngestConfig {
                 .repository(jobRepository)
                 .start(ingestStep())
                 .build();
+    }
+
+    public void runJob() throws Exception {
+        jobLauncher.run(
+                ingestJob(),
+                new JobParametersBuilder()
+                        .addLong("ingest-job-id", System.nanoTime())
+                        .toJobParameters()
+        );
     }
 }
