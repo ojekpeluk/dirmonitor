@@ -133,7 +133,7 @@ public class DomainAggregateConfig {
     }
 
     /**
-     * Schedule this batch to run once every minute.
+     * Schedule this batch job to run once every minute (fixedRate = 60000).
      *
      * @throws Exception
      */

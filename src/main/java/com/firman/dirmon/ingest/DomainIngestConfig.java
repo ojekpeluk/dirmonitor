@@ -4,6 +4,7 @@ import com.firman.dirmon.datasource.Domain;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
@@ -34,7 +35,7 @@ public class DomainIngestConfig {
             + "(timestamp, src_ip, src_port, dst_ip, dst_port, domain)"
             + " VALUES "
             + "(:timestamp, :srcIp, :srcPort, :dstIp, :dstPort, :domain)";
-    private static final String INPUT_FIELDS[] = {"timestamp",
+    private static final String[] INPUT_FIELDS = {"timestamp",
             "srcIp",
             "srcPort",
             "dstIp",
@@ -44,7 +45,7 @@ public class DomainIngestConfig {
     private static final String STEP_NAME = "ingestDomainStep";
     private static final String JOB_NAME = "ingestDomainJob";
 
-    private final String inputFile;
+    private String inputFile;
     private final int chunkSize;
     private final DataSource dataSource;
     private final JobRepository jobRepository;
@@ -66,8 +67,8 @@ public class DomainIngestConfig {
     }
 
     @Bean
+    @StepScope
     public FlatFileItemReader<Domain> csvReader() {
-        LOGGER.info("Ingesting: " + inputFile);
         return new FlatFileItemReaderBuilder<Domain>()
                 .name(READER_NAME)
                 .resource(new FileSystemResource(inputFile))
@@ -78,7 +79,6 @@ public class DomainIngestConfig {
                 .build();
     }
 
-
     @Bean
     public JdbcBatchItemWriter<Domain> dbWriter() {
         return new JdbcBatchItemWriterBuilder<Domain>()
@@ -87,7 +87,6 @@ public class DomainIngestConfig {
                 .beanMapped()
                 .build();
     }
-
 
     @Bean
     public Step ingestStep() {
@@ -108,7 +107,15 @@ public class DomainIngestConfig {
                 .build();
     }
 
-    public void runJob() throws Exception {
+    /**
+     * Triggers the batch job to ingest inputFile into database.
+     *
+     * @param inputFile The file to read and insert into database.
+     * @throws Exception
+     */
+    public void runJob(String inputFile) throws Exception {
+        this.inputFile = inputFile;
+        LOGGER.info("Ingesting: " + inputFile);
         jobLauncher.run(
                 ingestJob(),
                 new JobParametersBuilder()
