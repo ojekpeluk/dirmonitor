@@ -24,6 +24,7 @@ import java.util.logging.Logger;
 
 /**
  * Spring Batch configuration for input file ingestion into the database.
+ * The batch job runs just once and gets triggered by {@link DirMonitor} whenever it gets notified of new input file.
  *
  * @author Firman
  */
@@ -45,6 +46,11 @@ public class DomainIngestConfig {
     private static final String STEP_NAME = "ingestDomainStep";
     private static final String JOB_NAME = "ingestDomainJob";
 
+    /**
+     * The input file being copied to watched directory,
+     * that is then ingested to database. It is initialized to a value set in property file.
+     * However for each job, before the job runs, it is set to new value by {@link DirMonitor}.
+     */
     private String inputFile;
     private final int chunkSize;
     private final DataSource dataSource;
