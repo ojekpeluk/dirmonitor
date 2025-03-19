@@ -36,8 +36,9 @@ import java.util.logging.Logger;
 public class DomainAggregateConfig {
 
     private static final Logger LOGGER = Logger.getLogger(DomainAggregateConfig.class.getName());
-    private static final String SELECT_SQL = "SELECT domain, COUNT(*) as connections from domains GROUP BY domain ORDER BY connections DESC LIMIT 10";
-    private static final String[] OUTPUT_FIELDS = {"domain", "connections"};
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final String SELECT_SQL = "SELECT ROW_NUMBER() OVER () as row, domain, connections FROM (SELECT domain, COUNT(*) as connections from domains GROUP BY domain ORDER BY connections DESC LIMIT 10)";
+    private static final String[] OUTPUT_FIELDS = {"rowNumber", "domain", "connections"};
     private static final String WRITER_NAME = "domainWriter";
     private static final String STEP_NAME = "aggregateDomainStep";
     private static final String JOB_NAME = "aggregareDomainJob";
@@ -67,6 +68,7 @@ public class DomainAggregateConfig {
     public RowMapper<OutputCsv> domainRowMapper() {
         return (resultSet, rowNum) -> {
             OutputCsv outputCsv = new OutputCsv();
+            outputCsv.setRowNumber(resultSet.getInt("row"));
             outputCsv.setDomain(resultSet.getString("domain"));
             outputCsv.setConnections(resultSet.getLong("connections") + " connections");
             return outputCsv;
@@ -96,12 +98,11 @@ public class DomainAggregateConfig {
 
     @Bean
     public FlatFileItemWriter<OutputCsv> csvWriter() {
-        String timeStamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
         return new FlatFileItemWriterBuilder<OutputCsv>()
                 .name(WRITER_NAME)
                 .resource(new FileSystemResource(outputFile))
                 .lineAggregator(domainDelimitedLineAggregator())
-                .headerCallback( writer -> writer.write("# Top 10 domains " + timeStamp))
+                .headerCallback(writer -> writer.write("# Top 10 domains " + DATE_FORMAT.format(Calendar.getInstance().getTime())))
                 .build();
     }
 
