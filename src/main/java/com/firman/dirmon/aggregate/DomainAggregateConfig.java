@@ -1,6 +1,6 @@
 package com.firman.dirmon.aggregate;
 
-import com.firman.dirmon.datasource.Domain;
+import com.firman.dirmon.datasource.OutputCsv;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.Step;
@@ -24,6 +24,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import javax.sql.DataSource;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.logging.Logger;
 
 /**
@@ -34,15 +36,8 @@ import java.util.logging.Logger;
 public class DomainAggregateConfig {
 
     private static final Logger LOGGER = Logger.getLogger(DomainAggregateConfig.class.getName());
-    private static final String SELECT_SQL = "SELECT timestamp, src_ip, src_port, dst_ip, dst_port, domain FROM domains";
-    private static final String[] OUTPUT_FIELDS = {
-            "timestamp",
-            "srcIp",
-            "srcPort",
-            "dstIp",
-            "dstPort",
-            "domain"
-    };
+    private static final String SELECT_SQL = "SELECT domain, COUNT(*) as connections from domains GROUP BY domain ORDER BY connections DESC LIMIT 10";
+    private static final String[] OUTPUT_FIELDS = {"domain", "connections"};
     private static final String WRITER_NAME = "domainWriter";
     private static final String STEP_NAME = "aggregateDomainStep";
     private static final String JOB_NAME = "aggregareDomainJob";
@@ -69,22 +64,18 @@ public class DomainAggregateConfig {
     }
 
     @Bean
-    public RowMapper<Domain> domainRowMapper() {
+    public RowMapper<OutputCsv> domainRowMapper() {
         return (resultSet, rowNum) -> {
-            Domain domain = new Domain();
-            domain.setTimestamp(resultSet.getLong("timestamp"));
-            domain.setSrcIp(resultSet.getString("src_ip"));
-            domain.setSrcPort(resultSet.getInt("src_port"));
-            domain.setDstIp(resultSet.getString("dst_ip"));
-            domain.setDstPort(resultSet.getInt("dst_port"));
-            domain.setDomain(resultSet.getString("domain"));
-            return domain;
+            OutputCsv outputCsv = new OutputCsv();
+            outputCsv.setDomain(resultSet.getString("domain"));
+            outputCsv.setConnections(resultSet.getLong("connections") + " connections");
+            return outputCsv;
         };
     }
 
     @Bean
-    public JdbcCursorItemReader<Domain> dbReader() {
-        return new JdbcCursorItemReaderBuilder<Domain>()
+    public JdbcCursorItemReader<OutputCsv> dbReader() {
+        return new JdbcCursorItemReaderBuilder<OutputCsv>()
                 .name(WRITER_NAME)
                 .dataSource(dataSource)
                 .sql(SELECT_SQL)
@@ -93,22 +84,24 @@ public class DomainAggregateConfig {
     }
 
     @Bean
-    public DelimitedLineAggregator<Domain> domainDelimitedLineAggregator() {
-        BeanWrapperFieldExtractor<Domain> beanWrapperFieldExtractor = new BeanWrapperFieldExtractor<>();
+    public DelimitedLineAggregator<OutputCsv> domainDelimitedLineAggregator() {
+        BeanWrapperFieldExtractor<OutputCsv> beanWrapperFieldExtractor = new BeanWrapperFieldExtractor<>();
         beanWrapperFieldExtractor.setNames(OUTPUT_FIELDS);
 
-        DelimitedLineAggregator<Domain> domainDelimitedLineAggregator = new DelimitedLineAggregator<>();
-        domainDelimitedLineAggregator.setDelimiter(",");
+        DelimitedLineAggregator<OutputCsv> domainDelimitedLineAggregator = new DelimitedLineAggregator<>();
+        domainDelimitedLineAggregator.setDelimiter(" - ");
         domainDelimitedLineAggregator.setFieldExtractor(beanWrapperFieldExtractor);
         return domainDelimitedLineAggregator;
     }
 
     @Bean
-    public FlatFileItemWriter<Domain> csvWriter() {
-        return new FlatFileItemWriterBuilder<Domain>()
+    public FlatFileItemWriter<OutputCsv> csvWriter() {
+        String timeStamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
+        return new FlatFileItemWriterBuilder<OutputCsv>()
                 .name(WRITER_NAME)
                 .resource(new FileSystemResource(outputFile))
                 .lineAggregator(domainDelimitedLineAggregator())
+                .headerCallback( writer -> writer.write("# Top 10 domains " + timeStamp))
                 .build();
     }
 
@@ -116,7 +109,7 @@ public class DomainAggregateConfig {
     public Step domainAggregateStep() {
         return new StepBuilder(STEP_NAME)
                 .repository(jobRepository)
-                .<Domain, Domain>chunk(chunkSize)
+                .<OutputCsv, OutputCsv>chunk(chunkSize)
                 .reader(dbReader())
                 .writer(csvWriter())
                 .transactionManager(transactionManager)
