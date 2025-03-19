@@ -7,5 +7,7 @@ CREATE TABLE domains  (
     src_port INTEGER NOT NULL,
     dst_ip VARCHAR(20) NOT NULL,
     dst_port INTEGER NOT NULL,
-    domain VARCHAR(100) NOT NULL
+    domain VARCHAR(100) NOT NULL,
+    -- To ensure records are unique
+    UNIQUE (timestamp, src_ip, domain)
 );
