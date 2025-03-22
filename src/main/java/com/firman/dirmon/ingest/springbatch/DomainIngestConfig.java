@@ -1,18 +1,20 @@
-package com.firman.dirmon.ingest;
+package com.firman.dirmon.ingest.springbatch;
 
 import com.firman.dirmon.datasource.Domain;
+import com.firman.dirmon.monitor.DirMonitorService;
 import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
-import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcBatchItemWriter;
 import org.springframework.batch.item.database.builder.JdbcBatchItemWriterBuilder;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.builder.FlatFileItemReaderBuilder;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +26,7 @@ import java.util.logging.Logger;
 
 /**
  * Spring Batch configuration for input file ingestion into the database.
- * The batch job runs just once and gets triggered by {@link DirMonitor} whenever it gets notified of new input file.
+ * The batch job runs just once and gets triggered by {@link DirMonitorService} whenever it gets notified of new input file.
  *
  * @author Firman
  */
@@ -44,37 +46,31 @@ public class DomainIngestConfig {
             "domain"};
     private static final String READER_NAME = "domainReader";
     private static final String STEP_NAME = "ingestDomainStep";
-    private static final String JOB_NAME = "ingestDomainJob";
+    public static final String JOB_NAME = "ingestDomainJob";
 
     /**
      * The input file being copied to watched directory,
      * that is then ingested to database. It is initialized to a value set in property file.
-     * However for each job, before the job runs, it is set to new value by {@link DirMonitor}.
+     * However for each job, before the job runs, it is set to new value by {@link DirMonitorService}.
      */
-    private String inputFile;
     private final int chunkSize;
     private final DataSource dataSource;
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
-    private final JobLauncher jobLauncher;
 
-    public DomainIngestConfig(@Value("${batch.input}") String inputFile,
-                              @Value("${batch.chunk-size}") int chunkSize,
+    public DomainIngestConfig(@Value("${batch.chunk-size}") int chunkSize,
                               DataSource dataSource,
                               JobRepository jobRepository,
-                              PlatformTransactionManager transactionManager,
-                              JobLauncher jobLauncher) {
-        this.inputFile = inputFile;
+                              PlatformTransactionManager transactionManager) {
         this.chunkSize = chunkSize;
         this.dataSource = dataSource;
         this.jobRepository = jobRepository;
         this.transactionManager = transactionManager;
-        this.jobLauncher = jobLauncher;
     }
 
-    @Bean
+    @Bean("ingestReader")
     @StepScope
-    public FlatFileItemReader<Domain> csvReader() {
+    public FlatFileItemReader<Domain> csvReader(@Value("${batch.input}") String inputFile) {
         return new FlatFileItemReaderBuilder<Domain>()
                 .name(READER_NAME)
                 .resource(new FileSystemResource(inputFile))
@@ -85,7 +81,7 @@ public class DomainIngestConfig {
                 .build();
     }
 
-    @Bean
+    @Bean("ingestWriter")
     public JdbcBatchItemWriter<Domain> dbWriter() {
         return new JdbcBatchItemWriterBuilder<Domain>()
                 .sql(INSERT_SQL)
@@ -94,39 +90,24 @@ public class DomainIngestConfig {
                 .build();
     }
 
-    @Bean
-    public Step ingestStep() {
+    @Bean("ingestStep")
+    public Step ingestStep(@Qualifier("ingestReader") ItemReader<Domain> reader,
+                           @Qualifier("ingestWriter") ItemWriter<Domain> writer) {
         return new StepBuilder(STEP_NAME)
                 .repository(jobRepository)
                 .<Domain, Domain>chunk(chunkSize)
-                .reader(csvReader())
-                .writer(dbWriter())
+                .reader(reader)
+                .writer(writer)
                 .transactionManager(transactionManager)
                 .build();
     }
 
-    @Bean
-    public Job ingestJob() {
+    @Bean(JOB_NAME)
+    public Job ingestJob(@Qualifier("ingestStep") Step ingestStep) {
         return new JobBuilder(JOB_NAME)
                 .repository(jobRepository)
-                .start(ingestStep())
+                .start(ingestStep)
                 .build();
     }
 
-    /**
-     * Triggers the batch job to ingest inputFile into database.
-     *
-     * @param inputFile The file to read and insert into database.
-     * @throws Exception
-     */
-    public void runJob(String inputFile) throws Exception {
-        this.inputFile = inputFile;
-        LOGGER.info("Ingesting: " + inputFile);
-        jobLauncher.run(
-                ingestJob(),
-                new JobParametersBuilder()
-                        .addLong("ingest-job-id", System.nanoTime())
-                        .toJobParameters()
-        );
-    }
 }

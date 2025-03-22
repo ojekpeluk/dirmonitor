@@ -1,6 +1,6 @@
 package com.firman.dirmon;
 
-import com.firman.dirmon.ingest.DirMonitor;
+import com.firman.dirmon.monitor.DirectoryMonitor;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
@@ -18,7 +18,7 @@ import javax.annotation.PostConstruct;
 public class DomainBatchApplication {
 
     @Autowired
-    private DirMonitor dirMonitor;
+    private DirectoryMonitor dirMonitor;
 
     public static void main(String[] args) {
         SpringApplication.run(DomainBatchApplication.class, args);
