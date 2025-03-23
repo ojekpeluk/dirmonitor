@@ -34,11 +34,11 @@ public class IngestFileService implements IngestFile {
     @Override
     public void ingestFile(String filePath) throws Exception {
         LOGGER.info("Ingesting: " + filePath);
-        System.setProperty("batch.input", filePath);
         jobLauncher.run(
                 ingestJob,
                 new JobParametersBuilder()
                         .addLong("ingest-job-id", System.nanoTime())
+                        .addString("batch.input", filePath)
                         .toJobParameters()
         );
     }

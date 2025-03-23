@@ -68,9 +68,15 @@ public class DomainIngestConfig {
         this.transactionManager = transactionManager;
     }
 
+    /**
+     * Read input file passed on through job params, and ingest it into db.
+     *
+     * @param inputFile Batch input file.
+     * @return
+     */
     @Bean("ingestReader")
     @StepScope
-    public FlatFileItemReader<Domain> csvReader(@Value("${batch.input}") String inputFile) {
+    public FlatFileItemReader<Domain> csvReader(@Value("#{jobParameters['batch.input']}") String inputFile) {
         return new FlatFileItemReaderBuilder<Domain>()
                 .name(READER_NAME)
                 .resource(new FileSystemResource(inputFile))
