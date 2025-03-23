@@ -1,7 +1,6 @@
 package com.firman.dirmon;
 
 import com.firman.dirmon.monitor.DirectoryMonitor;
-import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -13,7 +12,6 @@ import javax.annotation.PostConstruct;
  *
  * @author Firman
  */
-@EnableBatchProcessing
 @SpringBootApplication
 public class DomainBatchApplication {
 

@@ -3,6 +3,7 @@ package com.firman.dirmon.aggregate.springbatch;
 import com.firman.dirmon.datasource.OutputCsv;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
@@ -10,6 +11,7 @@ import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcCursorItemReader;
 import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
+import org.springframework.batch.item.file.FlatFileHeaderCallback;
 import org.springframework.batch.item.file.FlatFileItemWriter;
 import org.springframework.batch.item.file.builder.FlatFileItemWriterBuilder;
 import org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor;
@@ -33,6 +35,7 @@ import java.util.logging.Logger;
  * @author Firman
  */
 @Configuration
+@EnableBatchProcessing
 public class DomainAggregateConfig {
 
     private static final Logger LOGGER = Logger.getLogger(DomainAggregateConfig.class.getName());
@@ -93,13 +96,19 @@ public class DomainAggregateConfig {
         return domainDelimitedLineAggregator;
     }
 
+    @Bean
+    public FlatFileHeaderCallback headerCallback() {
+        return writer -> writer.write("# Top 10 domains " + DATE_FORMAT.format(Calendar.getInstance().getTime()));
+    }
+
     @Bean("aggregateWriter")
-    public FlatFileItemWriter<OutputCsv> csvWriter() {
+    public FlatFileItemWriter<OutputCsv> csvWriter(FlatFileHeaderCallback headerCallback) {
         return new FlatFileItemWriterBuilder<OutputCsv>()
                 .name(WRITER_NAME)
                 .resource(new FileSystemResource(outputFile))
                 .lineAggregator(domainDelimitedLineAggregator())
-                .headerCallback(writer -> writer.write("# Top 10 domains " + DATE_FORMAT.format(Calendar.getInstance().getTime())))
+                .headerCallback(headerCallback)
+//                .headerCallback(writer -> writer.write("# Top 10 domains " + DATE_FORMAT.format(Calendar.getInstance().getTime())))
                 .build();
     }
 

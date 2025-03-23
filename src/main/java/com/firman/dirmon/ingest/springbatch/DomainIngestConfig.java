@@ -4,6 +4,7 @@ import com.firman.dirmon.datasource.Domain;
 import com.firman.dirmon.monitor.DirMonitorService;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
@@ -31,6 +32,7 @@ import java.util.logging.Logger;
  * @author Firman
  */
 @Configuration
+@EnableBatchProcessing
 public class DomainIngestConfig {
 
     private static final Logger LOGGER = Logger.getLogger(DomainIngestConfig.class.getName());
