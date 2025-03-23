@@ -16,6 +16,7 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
 /**
  * Monitors directory for newly created/copied input file and triggers ingest batch job.
+ *
  * @author Firman
  */
 @Service
@@ -38,6 +39,12 @@ public class DirMonitorService implements DirectoryMonitor {
                              @Value("${batch.watchdir}") String watchedDir) throws IOException {
         this.ingestFile = ingestFile;
         this.watchedDir = Paths.get(watchedDir);
+        if (!this.watchedDir.toFile().exists()
+                && !this.watchedDir.toFile().mkdir()) {
+            throw new RuntimeException(this.watchedDir.toAbsolutePath() + " does not exist and can't be created!");
+        } else {
+            LOGGER.info("Watched dir: " + this.watchedDir.toAbsolutePath());
+        }
         this.watchService = FileSystems.getDefault().newWatchService();
         this.watchedDir.register(watchService, ENTRY_MODIFY, ENTRY_CREATE);
     }
@@ -55,6 +62,7 @@ public class DirMonitorService implements DirectoryMonitor {
             }
 
             for (WatchEvent<?> event : key.pollEvents()) {
+                @SuppressWarnings("unchecked")
                 WatchEvent<Path> eventPath = (WatchEvent<Path>) event;
                 Path newFile = watchedDir.resolve(eventPath.context());
                 LOGGER.info(event.kind() + " : " + newFile.toAbsolutePath());
@@ -64,7 +72,7 @@ public class DirMonitorService implements DirectoryMonitor {
                 try (RandomAccessFile access = new RandomAccessFile(newFile.toString(), "rw")) {
                     ingestFile.ingestFile(newFile.toString());
                 } catch (SecurityException | IOException exception) {
-                    LOGGER.info( newFile + " has not completed being written");
+                    LOGGER.info(newFile + " has not completed being written");
                 } catch (Exception exception) {
                     LOGGER.info("Failed ingesting file: " + exception.getLocalizedMessage());
                     break;
